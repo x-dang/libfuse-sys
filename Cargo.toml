@@ -1,0 +1,15 @@
+[package]
+name = "libfuse-sys"
+version = "0.1.0"
+authors = ["Huacheng Tan <huacheng.tan@foxmail.com>"]
+edition = "2018"
+links = "fuse3"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+pkg-config = "0.3.16"
+bindgen = "0.51.1"
+
+[dependencies]
