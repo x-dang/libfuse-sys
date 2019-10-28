@@ -2,6 +2,7 @@
 
 use super::*;
 
+use std::sync::Once;
 
 pub trait FuseOperations {
     fn getattr(&mut self) -> i32 {
@@ -23,14 +24,11 @@ pub trait FuseOperations {
 
 
 static mut USER_OPERATIONS: Option<Box<dyn FuseOperations>> = None;
+static INIT: Once = Once::new();
 
 pub fn set_operations<T: 'static + FuseOperations>(ops: T) {
     unsafe {
-        if let None = USER_OPERATIONS {
-            USER_OPERATIONS = Some(Box::new(ops));
-        } else {
-            panic!("This function can only be called once.");
-        }
+        INIT.call_once(|| USER_OPERATIONS = Some(Box::new(ops)));
     }
 }
 
