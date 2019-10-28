@@ -26,6 +26,7 @@ fn main() {
     let fuse_header = generate_fuse_header(&out_path, fuse_header);
     let fuse_header = fuse_header.to_str().unwrap();
 
+    // install rustfmt(rustup component add rustfmt) to get formated bindings
     let bindings = bindgen::Builder::default()
         .header(fuse_header)
         .generate()
