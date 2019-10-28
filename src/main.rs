@@ -1,8 +1,10 @@
-use std::env;
+use std::{ env, process };
 use libfuse_sys;
 
 fn main() {
-    libfuse_sys::fuse_main(env::args(), Foo());
+    if let Err(e) = libfuse_sys::fuse_main(env::args(), Foo()) {
+        process::exit(e);
+    }
 }
 
 struct Foo();

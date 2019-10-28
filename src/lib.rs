@@ -14,7 +14,7 @@ use std::ffi::CString;
 use std::os::raw::c_int;
 
 
-pub fn fuse_main<T, U>(args: T, ops: U) -> i32
+pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
     where T: Iterator<Item=String>,
           U: 'static + operations::FuseOperations
 {
@@ -30,7 +30,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> i32
     let ops = fuse::fuse_operations::new();
 
     unsafe {
-        let ret = fuse::fuse_main_real(
+        let err = fuse::fuse_main_real(
             c_args.len() as c_int,
             c_args.as_mut_ptr(),
             &ops,
@@ -42,7 +42,11 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> i32
             .map(|raw| CString::from_raw(*raw))
             .collect();
 
-        ret
+        if err == 0 {
+            Ok(())
+        } else {
+            Err(err as i32)
+        }
     }
 }
 
