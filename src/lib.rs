@@ -7,11 +7,11 @@ mod fuse {
 }
 
 
+pub mod operations;
+
+
 use std::ffi::CString;
 use std::os::raw::c_int;
-
-
-pub mod operations;
 
 
 pub fn fuse_main<T, U>(args: T, ops: U) -> i32
