@@ -9,4 +9,4 @@ fn main() {
 
 struct Foo();
 
-impl libfuse_sys::operations::FuseOperations for Foo { }
+impl libfuse_sys::Operations for Foo { }

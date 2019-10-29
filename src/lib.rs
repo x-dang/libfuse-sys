@@ -1,13 +1,14 @@
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
-#[allow(dead_code)]
-mod fuse {
+pub mod fuse {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
+mod operations;
 
-pub mod operations;
+
+pub use operations::Operations;
 
 
 use std::ffi::CString;
@@ -16,7 +17,7 @@ use std::os::raw::c_int;
 
 pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
     where T: Iterator<Item=String>,
-          U: 'static + operations::FuseOperations
+          U: 'static + Operations
 {
     let c_args = args
         .map(|arg| CString::new(arg.clone()).unwrap());
