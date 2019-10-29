@@ -4,24 +4,25 @@
 use super::fuse;
 
 use std::sync::Once;
-use std::os::raw::{ c_int, c_char, c_void };
-
 use std::ffi::{ CStr, CString };
+
+use libc;
+use libc::{ c_int, c_char, c_void };
 
 
 pub trait Operations {
     fn getattr(&mut self,
         path: &str,
         stbuf: &mut fuse::stat,
-        fi: &mut fuse::fuse_file_info) -> c_int { -1 }
+        fi: &mut fuse::fuse_file_info) -> c_int { -libc::ENOSYS }
 
-    fn open(&mut self, path: &str, fi: &mut fuse::fuse_file_info) -> c_int { -1 }
+    fn open(&mut self, path: &str, fi: &mut fuse::fuse_file_info) -> c_int { -libc::ENOSYS }
 
     fn read(&mut self,
         path: &str,
         buf: &mut [c_char],
         offset: fuse::off_t,
-        fi: &mut fuse::fuse_file_info) -> c_int { -1 }
+        fi: &mut fuse::fuse_file_info) -> c_int { -libc::ENOSYS }
 
     fn readdir(&mut self,
         path: &str,
@@ -29,7 +30,7 @@ pub trait Operations {
             &str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags) -> c_int,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info,
-        flags:fuse::fuse_readdir_flags) -> c_int { -1 }
+        flags:fuse::fuse_readdir_flags) -> c_int { -libc::ENOSYS }
 
     fn init(&mut self, conn: &mut fuse::fuse_conn_info, cfg: &mut fuse::fuse_config) { }
 }
