@@ -12,6 +12,7 @@ pub use operations::Operations;
 
 
 use std::ffi::CString;
+
 use libc::c_int;
 
 
@@ -48,6 +49,13 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
         } else {
             Err(err as i32)
         }
+    }
+}
+
+
+impl fuse::stat {
+    pub fn clear(&mut self) {
+        unsafe { std::ptr::write_bytes(self, 0, 1); }
     }
 }
 
