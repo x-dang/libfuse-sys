@@ -59,7 +59,7 @@ unsafe fn str_from_ptr<'a>(ptr: *const c_char) -> &'a str {
 }
 
 
-unsafe extern "C" fn ops_getattr(
+unsafe extern "C" fn getattr(
     path: *const c_char,
     stbuf: *mut fuse::stat,
     fi: *mut fuse::fuse_file_info) -> c_int
@@ -67,11 +67,11 @@ unsafe extern "C" fn ops_getattr(
     op!(getattr, str_from_ptr(path), &mut *stbuf, &mut *fi)
 }
 
-unsafe extern "C" fn ops_open(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
+unsafe extern "C" fn open(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
     op!(open, str_from_ptr(path), &mut *fi)
 }
 
-unsafe extern "C" fn ops_read(
+unsafe extern "C" fn read(
     path: *const c_char,
     buf: *mut c_char,
     size: usize,
@@ -81,7 +81,7 @@ unsafe extern "C" fn ops_read(
     op!(read, str_from_ptr(path), std::slice::from_raw_parts_mut(buf, size), offset, &mut *fi)
 }
 
-unsafe extern "C" fn ops_readdir(
+unsafe extern "C" fn readdir(
     path: *const c_char,
     buf: *mut c_void,
     filler: fuse::fuse_fill_dir_t,
@@ -109,7 +109,7 @@ unsafe extern "C" fn ops_readdir(
         flags)
 }
 
-unsafe extern "C" fn ops_init(
+unsafe extern "C" fn init(
     conn: *mut fuse::fuse_conn_info,
     cfg: *mut fuse::fuse_config) -> *mut c_void
 {
@@ -120,7 +120,7 @@ unsafe extern "C" fn ops_init(
 
 fn fuse_operations_new() -> fuse::fuse_operations {
     fuse::fuse_operations {
-        getattr: Some(ops_getattr),
+        getattr: Some(getattr),
         readlink: None,
         mknod: None,
         mkdir: None,
@@ -132,8 +132,8 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         chmod: None,
         chown: None,
         truncate: None,
-        open: Some(ops_open),
-        read: Some(ops_read),
+        open: Some(open),
+        read: Some(read),
         write: None,
         statfs: None,
         flush: None,
@@ -144,10 +144,10 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         listxattr: None,
         removexattr: None,
         opendir: None,
-        readdir: Some(ops_readdir),
+        readdir: Some(readdir),
         releasedir: None,
         fsyncdir: None,
-        init: Some(ops_init),
+        init: Some(init),
         destroy: None,
         access: None,
         create: None,
