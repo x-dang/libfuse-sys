@@ -3,7 +3,7 @@
 use std::{ env, process };
 
 use libc;
-use libc::{ c_int, c_char };
+use libc::c_int;
 
 use libfuse_sys;
 use libfuse_sys::fuse;
@@ -25,14 +25,17 @@ struct Hello {
 }
 
 impl libfuse_sys::Operations for Hello {
-    fn init(&mut self, conn: &mut fuse::fuse_conn_info, cfg: &mut fuse::fuse_config) {
-        cfg.kernel_cache = 1
+    fn init(&mut self,
+        info: &mut fuse::fuse_conn_info,
+        conf: &mut fuse::fuse_config)
+    {
+        conf.kernel_cache = 1
     }
 
     fn getattr(&mut self,
         path: &str,
         stbuf: &mut fuse::stat,
-        fi: &mut fuse::fuse_file_info) -> c_int
+        fi: Option<&mut fuse::fuse_file_info>) -> c_int
     {
         stbuf.clear();
 
@@ -52,8 +55,8 @@ impl libfuse_sys::Operations for Hello {
 
     fn readdir(&mut self,
         path: &str,
-        filler: &mut dyn FnMut(
-            &str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags) -> c_int,
+        filler: &dyn Fn(&str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags)
+            -> Result<c_int, c_int>,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info,
         flags:fuse::fuse_readdir_flags) -> c_int
@@ -62,14 +65,15 @@ impl libfuse_sys::Operations for Hello {
             return -libc::ENOENT;
         }
 
-        filler(".", None, 0, 0);
-        filler("..", None, 0, 0);
-        filler(&self.filename, None, 0, 0);
-
-        0
+        filler(".", None, 0, 0).and(
+        filler("..", None, 0, 0)).and(
+        filler(&self.filename, None, 0, 0)).unwrap_or(-libc::ENOMEM)
     }
 
-    fn open(&mut self, path: &str, fi: &mut fuse::fuse_file_info) -> c_int {
+    fn open(&mut self,
+        path: &str,
+        fi: &mut fuse::fuse_file_info) -> c_int
+    {
         if &path[1..] != self.filename {
             return -libc::ENOENT;
         }
@@ -83,7 +87,8 @@ impl libfuse_sys::Operations for Hello {
 
     fn read(&mut self,
         path: &str,
-        buf: &mut [c_char],
+        filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
+        size: usize,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info) -> c_int
     {
@@ -91,23 +96,19 @@ impl libfuse_sys::Operations for Hello {
             return -libc::ENOENT;
         }
 
-        let mut size = buf.len() as fuse::off_t;
-        let len = self.contents.len() as fuse::off_t;
+        let mut size = size;
+        let offset = offset as usize;
+
+        let len = self.contents.len();
 
         if offset < len {
             if offset + size > len {
                 size = len - offset;
             }
 
-            let ptr = (&self.contents[offset as usize ..]).as_ptr() as *const c_char;
-
-            unsafe {
-                std::ptr::copy(ptr, buf.as_mut_ptr(), size as usize);
-            }
-
-            return size as c_int;
+            filler(self.contents[offset .. offset + size].as_bytes()).unwrap() as c_int
+        } else {
+            0
         }
-
-        0
     }
 }
