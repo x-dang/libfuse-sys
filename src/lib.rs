@@ -1,18 +1,11 @@
-#[allow(non_upper_case_globals)]
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
-pub mod fuse {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
+pub mod fuse;
 
 mod operations;
 
 
 pub use operations::Operations;
 
-
 use std::ffi::CString;
-
 use libc::c_int;
 
 
@@ -49,13 +42,6 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
         } else {
             Err(err as i32)
         }
-    }
-}
-
-
-impl fuse::stat {
-    pub fn clear(&mut self) {
-        unsafe { std::ptr::write_bytes(self, 0, 1); }
     }
 }
 
