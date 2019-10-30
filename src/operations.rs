@@ -39,6 +39,12 @@ pub trait Operations {
 static mut USER_OPERATIONS: Option<Box<dyn Operations>> = None;
 static INIT: Once = Once::new();
 
+macro_rules! op {
+    ( $method:ident, $( $arg:expr ),* ) => {
+        USER_OPERATIONS.as_mut().unwrap().$method( $( $arg, )* )
+    };
+}
+
 pub fn set_operations<T: 'static + Operations>(ops: T) {
     unsafe {
         INIT.call_once(|| USER_OPERATIONS = Some(Box::new(ops)));
@@ -56,11 +62,11 @@ unsafe extern "C" fn ops_getattr(
     stbuf: *mut fuse::stat,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    USER_OPERATIONS.as_mut().unwrap().getattr(str_from_ptr(path), &mut *stbuf, &mut *fi)
+    op!(getattr, str_from_ptr(path), &mut *stbuf, &mut *fi)
 }
 
 unsafe extern "C" fn ops_open(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
-    USER_OPERATIONS.as_mut().unwrap().open(str_from_ptr(path), &mut *fi)
+    op!(open, str_from_ptr(path), &mut *fi)
 }
 
 unsafe extern "C" fn ops_read(
@@ -70,11 +76,7 @@ unsafe extern "C" fn ops_read(
     offset: fuse::off_t,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    USER_OPERATIONS.as_mut().unwrap().read(
-        str_from_ptr(path),
-        std::slice::from_raw_parts_mut(buf, size),
-        offset,
-        &mut *fi)
+    op!(read, str_from_ptr(path), std::slice::from_raw_parts_mut(buf, size), offset, &mut *fi)
 }
 
 unsafe extern "C" fn ops_readdir(
@@ -87,7 +89,7 @@ unsafe extern "C" fn ops_readdir(
 {
     let filler = filler.unwrap();
 
-    USER_OPERATIONS.as_mut().unwrap().readdir(
+    op!(readdir,
         str_from_ptr(path),
         &mut |name, stbuf, off, flags| {
             let name = CString::new(name).unwrap();
@@ -109,7 +111,7 @@ unsafe extern "C" fn ops_init(
     conn: *mut fuse::fuse_conn_info,
     cfg: *mut fuse::fuse_config) -> *mut c_void
 {
-    USER_OPERATIONS.as_mut().unwrap().init(&mut *conn, &mut *cfg);
+    op!(init, &mut *conn, &mut *cfg);
 
     std::ptr::null_mut()
 }
