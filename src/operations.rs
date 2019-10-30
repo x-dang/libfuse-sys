@@ -45,10 +45,12 @@ macro_rules! op {
     };
 }
 
-pub fn set_operations<T: 'static + Operations>(ops: T) {
+pub fn set_operations<T: 'static + Operations>(ops: T) -> fuse::fuse_operations {
     unsafe {
         INIT.call_once(|| USER_OPERATIONS = Some(Box::new(ops)));
     }
+
+    fuse_operations_new()
 }
 
 
@@ -116,50 +118,48 @@ unsafe extern "C" fn ops_init(
     std::ptr::null_mut()
 }
 
-impl fuse::fuse_operations {
-    pub fn new() -> fuse::fuse_operations {
-        fuse::fuse_operations {
-            getattr: Some(ops_getattr),
-            readlink: None,
-            mknod: None,
-            mkdir: None,
-            unlink: None,
-            rmdir: None,
-            symlink: None,
-            rename: None,
-            link: None,
-            chmod: None,
-            chown: None,
-            truncate: None,
-            open: Some(ops_open),
-            read: Some(ops_read),
-            write: None,
-            statfs: None,
-            flush: None,
-            release: None,
-            fsync: None,
-            setxattr: None,
-            getxattr: None,
-            listxattr: None,
-            removexattr: None,
-            opendir: None,
-            readdir: Some(ops_readdir),
-            releasedir: None,
-            fsyncdir: None,
-            init: Some(ops_init),
-            destroy: None,
-            access: None,
-            create: None,
-            lock: None,
-            utimens: None,
-            bmap: None,
-            ioctl: None,
-            poll: None,
-            write_buf: None,
-            read_buf: None,
-            flock: None,
-            fallocate: None,
-            copy_file_range: None,
-        }
+fn fuse_operations_new() -> fuse::fuse_operations {
+    fuse::fuse_operations {
+        getattr: Some(ops_getattr),
+        readlink: None,
+        mknod: None,
+        mkdir: None,
+        unlink: None,
+        rmdir: None,
+        symlink: None,
+        rename: None,
+        link: None,
+        chmod: None,
+        chown: None,
+        truncate: None,
+        open: Some(ops_open),
+        read: Some(ops_read),
+        write: None,
+        statfs: None,
+        flush: None,
+        release: None,
+        fsync: None,
+        setxattr: None,
+        getxattr: None,
+        listxattr: None,
+        removexattr: None,
+        opendir: None,
+        readdir: Some(ops_readdir),
+        releasedir: None,
+        fsyncdir: None,
+        init: Some(ops_init),
+        destroy: None,
+        access: None,
+        create: None,
+        lock: None,
+        utimens: None,
+        bmap: None,
+        ioctl: None,
+        poll: None,
+        write_buf: None,
+        read_buf: None,
+        flock: None,
+        fallocate: None,
+        copy_file_range: None,
     }
 }

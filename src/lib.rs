@@ -20,9 +20,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
         .map(|arg| arg.into_raw())
         .collect();
 
-    operations::set_operations(ops);
-
-    let ops = fuse::fuse_operations::new();
+    let ops = operations::set_operations(ops);
 
     unsafe {
         let err = fuse::fuse_main_real(
