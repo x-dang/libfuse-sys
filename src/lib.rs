@@ -8,7 +8,7 @@ pub use neg::Neg;
 pub use operations::Operations;
 
 use std::ffi::CString;
-use libc::c_int;
+use std::convert::TryInto;
 
 
 pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
@@ -26,7 +26,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
 
     unsafe {
         let err = fuse::fuse_main_real(
-            c_args.len() as c_int,
+            c_args.len().try_into().unwrap(),
             c_args.as_mut_ptr(),
             &ops,
             std::mem::size_of::<fuse::fuse_operations>(),
@@ -40,7 +40,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
         if err == 0 {
             Ok(())
         } else {
-            Err(err as i32)
+            Err(err.try_into().unwrap())
         }
     }
 }
