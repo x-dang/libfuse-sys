@@ -18,3 +18,18 @@ impl Neg {
         self.0
     }
 }
+
+#[macro_export]
+macro_rules! neg {
+    ( $v:expr ) => {
+        {
+            let v = $v;
+
+            if v < 0 {
+                Neg::new(v).unwrap()
+            } else {
+                panic!("integer used to construct `Neg` must be less than zero, found `{}`", v)
+            }
+        }
+    };
+}

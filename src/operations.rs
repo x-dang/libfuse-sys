@@ -1,5 +1,4 @@
-use super::fuse;
-use super::Neg;
+use crate::{ fuse, Neg, neg };
 
 use std::sync::Once;
 use std::ffi::{ CStr, CString };
@@ -16,7 +15,7 @@ pub trait Operations {
         fi: Option<&mut fuse::fuse_file_info>) -> c_int { -libc::ENOSYS }
 
     fn readlink(&mut self,
-        path: &str) -> Result<String, Neg> { Err(Neg::new(-libc::ENOSYS).unwrap()) }
+        path: &str) -> Result<String, Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn open(&mut self,
         path: &str,
