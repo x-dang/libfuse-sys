@@ -1,8 +1,10 @@
 pub mod fuse;
 
+mod neg;
 mod operations;
 
 
+pub use neg::Neg;
 pub use operations::Operations;
 
 use std::ffi::CString;
