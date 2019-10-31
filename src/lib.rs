@@ -16,7 +16,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
           U: 'static + Operations
 {
     let c_args = args
-        .map(|arg| CString::new(arg.clone()).unwrap());
+        .map(|arg| CString::new(arg).unwrap());
 
     let mut c_args: Vec<_> = c_args
         .map(|arg| arg.into_raw())
