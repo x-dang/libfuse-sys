@@ -3,9 +3,6 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
-use pkg_config;
-use bindgen;
-
 
 const FUSE_USE_VERSION: u32 = 34;
 

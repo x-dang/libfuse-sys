@@ -1,10 +1,9 @@
-use crate::{ fuse, Neg, neg };
-
 use std::sync::Once;
 use std::ffi::{ CStr, CString };
 
-use libc;
 use libc::{ c_int, c_char, c_void };
+
+use crate::{ fuse, Neg, neg };
 
 
 #[allow(unused_variables)]

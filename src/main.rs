@@ -1,11 +1,6 @@
-#![allow(unused_variables)]
-
 use std::{ env, process };
-
-use libc;
 use libc::c_int;
 
-use libfuse_sys;
 use libfuse_sys::fuse;
 
 
@@ -24,6 +19,7 @@ struct Hello {
     contents: String,
 }
 
+#[allow(unused_variables)]
 impl libfuse_sys::Operations for Hello {
     fn init(&mut self,
         info: &mut fuse::fuse_conn_info,
