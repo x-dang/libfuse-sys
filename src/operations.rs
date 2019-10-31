@@ -59,8 +59,22 @@ macro_rules! op {
 }
 
 
-unsafe fn str_from_ptr<'a>(ptr: *const c_char) -> &'a str {
-    CStr::from_ptr(ptr).to_str().unwrap()
+macro_rules! ptr_str {
+    ( $ptr:expr ) => {
+        match CStr::from_ptr($ptr).to_str() {
+            Ok(x) => x,
+            Err(e) => panic!("convert '*const c_char' to '&str' failed: {:?}", e),
+        }
+    };
+}
+
+macro_rules! ptr_mut {
+    ( $ptr:expr ) => {
+        match $ptr.as_mut() {
+            Some(x) => x,
+            None => panic!("try to convert a null ptr to mutable reference"),
+        }
+    };
 }
 
 
@@ -69,10 +83,7 @@ unsafe extern "C" fn getattr(
     stbuf: *mut fuse::stat,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    op!(getattr,
-        str_from_ptr(path),
-        stbuf.as_mut().unwrap(),
-        fi.as_mut())
+    op!(getattr, ptr_str!(path), ptr_mut!(stbuf), fi.as_mut())
 }
 
 unsafe extern "C" fn readlink(
@@ -80,7 +91,7 @@ unsafe extern "C" fn readlink(
     buf: *mut c_char,
     size: usize) -> c_int
 {
-    match op!(readlink, str_from_ptr(path)) {
+    match op!(readlink, ptr_str!(path)) {
         Err(e) => e.get(),
         Ok(s) => {
             let s = CString::new(s).unwrap();
@@ -99,9 +110,7 @@ unsafe extern "C" fn open(
     path: *const c_char,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    op!(open,
-        str_from_ptr(path),
-        fi.as_mut().unwrap())
+    op!(open, ptr_str!(path), ptr_mut!(fi))
 }
 
 unsafe extern "C" fn read(
@@ -114,7 +123,7 @@ unsafe extern "C" fn read(
     let mut index = 0usize;
 
     op!(read,
-        str_from_ptr(path),
+        ptr_str!(path),
         &mut |src| {
             if src.len() > (size - index) {
                 Err(())
@@ -126,7 +135,7 @@ unsafe extern "C" fn read(
         },
         size,
         offset,
-        fi.as_mut().unwrap())
+        ptr_mut!(fi))
 }
 
 unsafe extern "C" fn readdir(
@@ -140,7 +149,7 @@ unsafe extern "C" fn readdir(
     let filler = filler.unwrap();
 
     op!(readdir,
-        str_from_ptr(path),
+        ptr_str!(path),
         &|name, stbuf, offset, flags| {
             let name = CString::new(name).unwrap();
 
@@ -159,7 +168,7 @@ unsafe extern "C" fn readdir(
             }
         },
         offset,
-        fi.as_mut().unwrap(),
+        ptr_mut!(fi),
         flags)
 }
 
@@ -167,9 +176,7 @@ unsafe extern "C" fn init(
     info: *mut fuse::fuse_conn_info,
     conf: *mut fuse::fuse_config) -> *mut c_void
 {
-    op!(init,
-        info.as_mut().unwrap(),
-        conf.as_mut().unwrap());
+    op!(init, ptr_mut!(info), ptr_mut!(conf));
 
     std::ptr::null_mut()
 }
