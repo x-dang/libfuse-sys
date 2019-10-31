@@ -1,4 +1,5 @@
 use super::fuse;
+use super::Neg;
 
 use std::sync::Once;
 use std::ffi::{ CStr, CString };
@@ -13,6 +14,9 @@ pub trait Operations {
         path: &str,
         stbuf: &mut fuse::stat,
         fi: Option<&mut fuse::fuse_file_info>) -> c_int { -libc::ENOSYS }
+
+    fn readlink(&mut self,
+        path: &str) -> Result<String, Neg> { Err(Neg::new(-libc::ENOSYS).unwrap()) }
 
     fn open(&mut self,
         path: &str,
@@ -71,6 +75,26 @@ unsafe extern "C" fn getattr(
         str_from_ptr(path),
         stbuf.as_mut().unwrap(),
         fi.as_mut())
+}
+
+unsafe extern "C" fn readlink(
+    path: *const c_char,
+    buf: *mut c_char,
+    size: usize) -> c_int
+{
+    match op!(readlink, str_from_ptr(path)) {
+        Err(e) => e.get(),
+        Ok(s) => {
+            let s = CString::new(s).unwrap();
+            let s = s.as_bytes();
+
+            let size = s.len().min(size - 1);
+            buf.copy_from_nonoverlapping(s.as_ptr().cast(), size);
+            *buf.add(size) = 0;
+
+            0
+        }
+    }
 }
 
 unsafe extern "C" fn open(
@@ -155,7 +179,7 @@ unsafe extern "C" fn init(
 fn fuse_operations_new() -> fuse::fuse_operations {
     fuse::fuse_operations {
         getattr: Some(getattr),
-        readlink: None,
+        readlink: Some(readlink),
         mknod: None,
         mkdir: None,
         unlink: None,
