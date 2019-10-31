@@ -1,8 +1,8 @@
-use std::clone::Clone;
 use libc::c_int;
 
 
-#[derive(Copy)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(transparent)]
 pub struct Neg(c_int);
 
 impl Neg {
@@ -16,11 +16,5 @@ impl Neg {
 
     pub const fn get(self) -> c_int {
         self.0
-    }
-}
-
-impl Clone for Neg {
-    fn clone(&self) -> Self {
-        Self(self.0)
     }
 }
