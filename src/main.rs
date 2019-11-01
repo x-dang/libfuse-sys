@@ -1,7 +1,6 @@
 use std::{ env, process };
-use libc::c_int;
 
-use libfuse_sys::fuse;
+use libfuse_sys::{ fuse, Neg, neg };
 
 
 fn main() {
@@ -31,7 +30,7 @@ impl libfuse_sys::Operations for Hello {
     fn getattr(&mut self,
         path: &str,
         stbuf: &mut fuse::stat,
-        fi: Option<&mut fuse::fuse_file_info>) -> c_int
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<(), Neg>
     {
         stbuf.clear();
 
@@ -43,42 +42,48 @@ impl libfuse_sys::Operations for Hello {
             stbuf.st_nlink = 1;
             stbuf.st_size = self.contents.len() as fuse::off_t;
         } else {
-            return -libc::ENOENT;
+            return Err(neg!(-libc::ENOENT));
         }
 
-        0
+        Ok(())
     }
 
     fn readdir(&mut self,
         path: &str,
-        filler: &dyn Fn(&str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags)
-            -> Result<c_int, c_int>,
+        filler: &dyn Fn(
+            &str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags) -> Result<(), ()>,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info,
-        flags:fuse::fuse_readdir_flags) -> c_int
+        flags: fuse::fuse_readdir_flags) -> Result<(), Neg>
     {
         if path != "/" {
-            return -libc::ENOENT;
+            return Err(neg!(-libc::ENOENT));
         }
 
-        filler(".", None, 0, 0).and(
-        filler("..", None, 0, 0)).and(
-        filler(&self.filename, None, 0, 0)).unwrap_or(-libc::ENOMEM)
+        let res = filler(".", None, 0, 0)
+            .and(filler("..", None, 0, 0))
+            .and(filler(&self.filename, None, 0, 0));
+
+        if let Ok(_) = res {
+            Ok(())
+        } else {
+            Err(neg!(-libc::ENOMEM))
+        }
     }
 
     fn open(&mut self,
         path: &str,
-        fi: &mut fuse::fuse_file_info) -> c_int
+        fi: &mut fuse::fuse_file_info) -> Result<(), Neg>
     {
         if &path[1..] != self.filename {
-            return -libc::ENOENT;
+            return Err(neg!(-libc::ENOENT));
         }
 
         if (fi.flags & libc::O_ACCMODE) != libc::O_RDONLY {
-            return -libc::EACCES;
+            return Err(neg!(-libc::EACCES));
         }
 
-        0
+        Ok(())
     }
 
     fn read(&mut self,
@@ -86,10 +91,10 @@ impl libfuse_sys::Operations for Hello {
         filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
         size: usize,
         offset: fuse::off_t,
-        fi: &mut fuse::fuse_file_info) -> c_int
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg>
     {
         if &path[1..] != self.filename {
-            return -libc::ENOENT;
+            return Err(neg!(-libc::ENOENT));
         }
 
         let mut size = size;
@@ -102,9 +107,9 @@ impl libfuse_sys::Operations for Hello {
                 size = len - offset;
             }
 
-            filler(self.contents[offset .. offset + size].as_bytes()).unwrap() as c_int
+            Ok(filler(self.contents[offset .. offset + size].as_bytes()).unwrap())
         } else {
-            0
+            Ok(0)
         }
     }
 }

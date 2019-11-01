@@ -1,5 +1,6 @@
 use std::sync::Once;
 use std::ffi::{ CStr, CString };
+use std::convert::TryInto;
 
 use libc::{ c_int, c_char, c_void };
 
@@ -11,29 +12,29 @@ pub trait Operations {
     fn getattr(&mut self,
         path: &str,
         stbuf: &mut fuse::stat,
-        fi: Option<&mut fuse::fuse_file_info>) -> c_int { -libc::ENOSYS }
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn readlink(&mut self,
         path: &str) -> Result<String, Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn open(&mut self,
         path: &str,
-        fi: &mut fuse::fuse_file_info) -> c_int { -libc::ENOSYS }
+        fi: &mut fuse::fuse_file_info) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn read(&mut self,
         path: &str,
         filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
         size: usize,
         offset: fuse::off_t,
-        fi: &mut fuse::fuse_file_info) -> c_int { -libc::ENOSYS }
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn readdir(&mut self,
         path: &str,
-        filler: &dyn Fn(&str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags)
-            -> Result<c_int, c_int>,
+        filler: &dyn Fn(
+            &str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags) -> Result<(), ()>,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info,
-        flags: fuse::fuse_readdir_flags) -> c_int { -libc::ENOSYS }
+        flags: fuse::fuse_readdir_flags) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
 
     fn init(&mut self,
         info: &mut fuse::fuse_conn_info,
@@ -83,7 +84,11 @@ unsafe extern "C" fn getattr(
     stbuf: *mut fuse::stat,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    op!(getattr, ptr_str!(path), ptr_mut!(stbuf), fi.as_mut())
+    if let Err(e) = op!(getattr, ptr_str!(path), ptr_mut!(stbuf), fi.as_mut()) {
+        e.get()
+    } else {
+        0
+    }
 }
 
 unsafe extern "C" fn readlink(
@@ -110,7 +115,11 @@ unsafe extern "C" fn open(
     path: *const c_char,
     fi: *mut fuse::fuse_file_info) -> c_int
 {
-    op!(open, ptr_str!(path), ptr_mut!(fi))
+    if let Err(e) = op!(open, ptr_str!(path), ptr_mut!(fi)) {
+        e.get()
+    } else {
+        0
+    }
 }
 
 unsafe extern "C" fn read(
@@ -122,20 +131,28 @@ unsafe extern "C" fn read(
 {
     let mut index = 0usize;
 
-    op!(read,
+    let res = op!(read,
         ptr_str!(path),
         &mut |src| {
-            if src.len() > (size - index) {
-                Err(())
-            } else {
-                buf.add(index).copy_from_nonoverlapping(src.as_ptr().cast(), src.len());
-                index += src.len();
+            let len = src.len();
+
+            if len <= size - index {
+                buf.add(index).copy_from_nonoverlapping(src.as_ptr().cast(), len);
+                index += len;
+
                 Ok(index)
+            } else {
+                Err(())
             }
         },
         size,
         offset,
-        ptr_mut!(fi))
+        fi.as_mut());
+
+    match res {
+        Ok(x) => x.try_into().unwrap(),
+        Err(e) => e.get(),
+    }
 }
 
 unsafe extern "C" fn readdir(
@@ -148,7 +165,7 @@ unsafe extern "C" fn readdir(
 {
     let filler = filler.unwrap();
 
-    op!(readdir,
+    let res = op!(readdir,
         ptr_str!(path),
         &|name, stbuf, offset, flags| {
             let name = CString::new(name).unwrap();
@@ -162,14 +179,21 @@ unsafe extern "C" fn readdir(
             let res = filler(buf, name.as_ptr(), stbuf, offset, flags);
 
             if res == 0 {
-                Ok(0)
+                Ok(())
             } else {
-                Err(res)
+                assert_eq!(res, 1);
+                Err(())
             }
         },
         offset,
         ptr_mut!(fi),
-        flags)
+        flags);
+
+    if let Err(e) = res {
+        e.get()
+    } else {
+        0
+    }
 }
 
 unsafe extern "C" fn init(
