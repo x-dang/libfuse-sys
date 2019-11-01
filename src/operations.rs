@@ -25,7 +25,11 @@ pub trait Operations {
     fn readlink(&mut self,
         path: &str) -> Result<String, Neg> { Err(neg!(-ENOSYS)) }
 
-    op_method! { open; path: &str, fi: &mut fuse::fuse_file_info }
+    op_method! { mknod ; path: &str, mode: fuse::mode_t, rdev: fuse::dev_t }
+    op_method! { mkdir ; path: &str, mode: fuse::mode_t }
+    op_method! { unlink; path: &str }
+    op_method! { rmdir ; path: &str }
+    op_method! { open  ; path: &str, fi: &mut fuse::fuse_file_info }
 
     fn read(&mut self,
         path: &str,
@@ -124,6 +128,22 @@ unsafe extern "C" fn readlink(
     }
 }
 
+unsafe extern "C" fn mknod(path: *const c_char, mode: fuse::mode_t, rdev: fuse::dev_t) -> c_int {
+    op_result!(op!(mknod, ptr_str!(path), mode, rdev))
+}
+
+unsafe extern "C" fn mkdir(path: *const c_char, mode: fuse::mode_t,) -> c_int {
+    op_result!(op!(mkdir, ptr_str!(path), mode))
+}
+
+unsafe extern "C" fn unlink(path: *const c_char) -> c_int {
+    op_result!(op!(unlink, ptr_str!(path)))
+}
+
+unsafe extern "C" fn rmdir(path: *const c_char) -> c_int {
+    op_result!(op!(rmdir, ptr_str!(path)))
+}
+
 unsafe extern "C" fn open(
     path: *const c_char,
     fi: *mut fuse::fuse_file_info) -> c_int
@@ -213,10 +233,10 @@ fn fuse_operations_new() -> fuse::fuse_operations {
     fuse::fuse_operations {
         getattr: Some(getattr),
         readlink: Some(readlink),
-        mknod: None,
-        mkdir: None,
-        unlink: None,
-        rmdir: None,
+        mknod: Some(mknod),
+        mkdir: Some(mkdir),
+        unlink: Some(unlink),
+        rmdir: Some(rmdir),
         symlink: None,
         rename: None,
         link: None,
