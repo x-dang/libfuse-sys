@@ -2,7 +2,7 @@ use std::sync::Once;
 use std::ffi::{ CStr, CString };
 use std::convert::TryInto;
 
-use libc::{ c_int, c_char, c_void };
+use libc::{ c_int, c_uint, c_char, c_void };
 use libc::ENOSYS;
 
 use crate::{ fuse, Neg, neg };
@@ -24,11 +24,24 @@ pub trait Operations {
 
     fn readlink(&mut self, path: &str) -> Result<String, Neg> { Err(neg!(-ENOSYS)) }
 
-    op_method! { mknod ; path: &str, mode: fuse::mode_t, rdev: fuse::dev_t }
-    op_method! { mkdir ; path: &str, mode: fuse::mode_t }
-    op_method! { unlink; path: &str }
-    op_method! { rmdir ; path: &str }
-    op_method! { open  ; path: &str, fi: &mut fuse::fuse_file_info }
+    op_method! { mknod  ; path: &str, mode: fuse::mode_t, rdev: fuse::dev_t }
+    op_method! { mkdir  ; path: &str, mode: fuse::mode_t }
+    op_method! { unlink ; path: &str }
+    op_method! { rmdir  ; path: &str }
+    op_method! { symlink; from: &str, to: &str }
+    op_method! { rename ; from: &str, to: &str, flags: c_uint }
+    op_method! { link   ; from: &str, to: &str }
+    op_method! { chmod  ; path: &str, mode: fuse::mode_t, fi: Option<&mut fuse::fuse_file_info> }
+
+    op_method! { chown;
+        path: &str,
+        uid: fuse::uid_t,
+        gid: fuse::gid_t,
+        fi: Option<&mut fuse::fuse_file_info>
+    }
+
+    op_method! { truncate; path: &str, size: fuse::off_t, fi: Option<&mut fuse::fuse_file_info> }
+    op_method! { open    ; path: &str, fi: &mut fuse::fuse_file_info }
 
     fn read(&mut self,
         path: &str,
@@ -137,6 +150,43 @@ unsafe extern "C" fn rmdir(path: *const c_char) -> c_int {
     op_result!(op!(rmdir, ptr_str!(path)))
 }
 
+unsafe extern "C" fn symlink(from: *const c_char, to: *const c_char) -> c_int {
+    op_result!(op!(symlink, ptr_str!(from), ptr_str!(to)))
+}
+
+unsafe extern "C" fn rename(from: *const c_char, to: *const c_char, flags: c_uint) -> c_int {
+    op_result!(op!(rename, ptr_str!(from), ptr_str!(to), flags))
+}
+
+unsafe extern "C" fn link(from: *const c_char, to: *const c_char) -> c_int {
+    op_result!(op!(link, ptr_str!(from), ptr_str!(to)))
+}
+
+unsafe extern "C" fn chmod(
+    path: *const c_char,
+    mode: fuse::mode_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(chmod, ptr_str!(path), mode, fi.as_mut()))
+}
+
+unsafe extern "C" fn chown(
+    path: *const c_char,
+    uid: fuse::uid_t,
+    gid: fuse::gid_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(chown, ptr_str!(path), uid, gid, fi.as_mut()))
+}
+
+unsafe extern "C" fn truncate(
+    path: *const c_char,
+    size: fuse::off_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(truncate, ptr_str!(path), size, fi.as_mut()))
+}
+
 unsafe extern "C" fn open(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
     op_result!(op!(open, ptr_str!(path), ptr_mut!(fi)))
 }
@@ -226,12 +276,12 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         mkdir: Some(mkdir),
         unlink: Some(unlink),
         rmdir: Some(rmdir),
-        symlink: None,
-        rename: None,
-        link: None,
-        chmod: None,
-        chown: None,
-        truncate: None,
+        symlink: Some(symlink),
+        rename: Some(rename),
+        link: Some(link),
+        chmod: Some(chmod),
+        chown: Some(chown),
+        truncate: Some(truncate),
         open: Some(open),
         read: Some(read),
         write: None,
