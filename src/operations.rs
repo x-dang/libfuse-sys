@@ -22,8 +22,7 @@ pub trait Operations {
         fi: Option<&mut fuse::fuse_file_info>
     }
 
-    fn readlink(&mut self,
-        path: &str) -> Result<String, Neg> { Err(neg!(-ENOSYS)) }
+    fn readlink(&mut self, path: &str) -> Result<String, Neg> { Err(neg!(-ENOSYS)) }
 
     op_method! { mknod ; path: &str, mode: fuse::mode_t, rdev: fuse::dev_t }
     op_method! { mkdir ; path: &str, mode: fuse::mode_t }
@@ -47,9 +46,7 @@ pub trait Operations {
         flags: fuse::fuse_readdir_flags
     }
 
-    fn init(&mut self,
-        info: &mut fuse::fuse_conn_info,
-        conf: &mut fuse::fuse_config) { }
+    fn init(&mut self, info: &mut fuse::fuse_conn_info, conf: &mut fuse::fuse_config) { }
 }
 
 
@@ -108,11 +105,7 @@ unsafe extern "C" fn getattr(
     op_result!(op!(getattr, ptr_str!(path), ptr_mut!(stbuf), fi.as_mut()))
 }
 
-unsafe extern "C" fn readlink(
-    path: *const c_char,
-    buf: *mut c_char,
-    size: usize) -> c_int
-{
+unsafe extern "C" fn readlink(path: *const c_char, buf: *mut c_char, size: usize) -> c_int {
     match op!(readlink, ptr_str!(path)) {
         Err(e) => e.get(),
         Ok(s) => {
@@ -144,10 +137,7 @@ unsafe extern "C" fn rmdir(path: *const c_char) -> c_int {
     op_result!(op!(rmdir, ptr_str!(path)))
 }
 
-unsafe extern "C" fn open(
-    path: *const c_char,
-    fi: *mut fuse::fuse_file_info) -> c_int
-{
+unsafe extern "C" fn open(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
     op_result!(op!(open, ptr_str!(path), ptr_mut!(fi)))
 }
 
@@ -216,8 +206,7 @@ unsafe extern "C" fn readdir(
         },
         offset,
         ptr_mut!(fi),
-        flags)
-    )
+        flags))
 }
 
 unsafe extern "C" fn init(
