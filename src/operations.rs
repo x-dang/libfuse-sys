@@ -3,6 +3,7 @@ use std::ffi::{ CStr, CString };
 use std::convert::TryInto;
 
 use libc::{ c_int, c_char, c_void };
+use libc::ENOSYS;
 
 use crate::{ fuse, Neg, neg };
 
@@ -12,21 +13,21 @@ pub trait Operations {
     fn getattr(&mut self,
         path: &str,
         stbuf: &mut fuse::stat,
-        fi: Option<&mut fuse::fuse_file_info>) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<(), Neg> { Err(neg!(-ENOSYS)) }
 
     fn readlink(&mut self,
-        path: &str) -> Result<String, Neg> { Err(neg!(-libc::ENOSYS)) }
+        path: &str) -> Result<String, Neg> { Err(neg!(-ENOSYS)) }
 
     fn open(&mut self,
         path: &str,
-        fi: &mut fuse::fuse_file_info) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
+        fi: &mut fuse::fuse_file_info) -> Result<(), Neg> { Err(neg!(-ENOSYS)) }
 
     fn read(&mut self,
         path: &str,
         filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
         size: usize,
         offset: fuse::off_t,
-        fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg> { Err(neg!(-libc::ENOSYS)) }
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg> { Err(neg!(-ENOSYS)) }
 
     fn readdir(&mut self,
         path: &str,
@@ -34,7 +35,7 @@ pub trait Operations {
             &str, Option<&fuse::stat>, fuse::off_t, fuse::fuse_fill_dir_flags) -> Result<(), ()>,
         offset: fuse::off_t,
         fi: &mut fuse::fuse_file_info,
-        flags: fuse::fuse_readdir_flags) -> Result<(), Neg> { Err(neg!(-libc::ENOSYS)) }
+        flags: fuse::fuse_readdir_flags) -> Result<(), Neg> { Err(neg!(-ENOSYS)) }
 
     fn init(&mut self,
         info: &mut fuse::fuse_conn_info,
