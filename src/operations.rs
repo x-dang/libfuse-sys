@@ -5,12 +5,24 @@ use std::convert::TryInto;
 use libc::{ c_int, c_uint, c_char, c_void };
 use libc::ENOSYS;
 
+use unwrap::unwrap;
+
 use crate::{ fuse, Neg, neg };
 
 
 macro_rules! op_method {
     ( $method:ident; $( $arg:ident : $T:ty ),* ) => {
         fn $method(&mut self, $( $arg: $T, )*) -> Result<(), Neg> { Err(neg!(-ENOSYS)) }
+    };
+}
+
+macro_rules! op_result {
+    ( $op:expr ) => {
+        if let Err(e) = $op {
+            e.get()
+        } else {
+            0
+        }
     };
 }
 
@@ -43,12 +55,34 @@ pub trait Operations {
     op_method! { truncate; path: &str, size: fuse::off_t, fi: Option<&mut fuse::fuse_file_info> }
     op_method! { open    ; path: &str, fi: &mut fuse::fuse_file_info }
 
-    fn read(&mut self,
+    op_method! { read;
         path: &str,
         filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
         size: usize,
         offset: fuse::off_t,
+        fi: Option<&mut fuse::fuse_file_info>
+    }
+
+    fn write(&mut self,
+        path: &str,
+        buf: &[u8],
+        offset: fuse::off_t,
         fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg> { Err(neg!(-ENOSYS)) }
+
+    op_method! { statfs; path: &str, stbuf: &mut fuse::statvfs }
+    op_method! { flush ; path: &str, fi: &mut fuse::fuse_file_info }
+
+    fn release(&mut self, path: &str, fi: &mut fuse::fuse_file_info) { }
+
+    op_method! { fsync   ; path: &str, isdatasync: bool, fi: &mut fuse::fuse_file_info }
+    op_method! { setxattr; path: &str, name: &str, value: &[u8], flags: c_int }
+
+    op_method! { getxattr;
+        path: &str,
+        name: &str,
+        filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
+        size: usize
+    }
 
     op_method! { readdir;
         path: &str,
@@ -76,7 +110,7 @@ pub fn set_operations<T: 'static + Operations>(ops: T) -> fuse::fuse_operations 
 
 macro_rules! op {
     ( $method:ident, $( $arg:expr ),* ) => {
-        USER_OPERATIONS.as_mut().unwrap().$method( $( $arg, )* )
+        unwrap!(USER_OPERATIONS.as_mut()).$method( $( $arg, )* )
     };
 }
 
@@ -99,15 +133,21 @@ macro_rules! ptr_mut {
     };
 }
 
+macro_rules! filler_mut {
+    ( $buf:ident, $size:expr, $index:ident ) => {
+        &mut |src| {
+            let len = src.len();
 
-macro_rules! op_result {
-    ( $op:expr ) => {
-        if let Err(e) = $op {
-            e.get()
-        } else {
-            0
+            if len <= $size - $index {
+                $buf.add($index).copy_from_nonoverlapping(src.as_ptr().cast(), len);
+                $index += len;
+
+                Ok($index)
+            } else {
+                Err(())
+            }
         }
-    };
+    }
 }
 
 unsafe extern "C" fn getattr(
@@ -122,7 +162,7 @@ unsafe extern "C" fn readlink(path: *const c_char, buf: *mut c_char, size: usize
     match op!(readlink, ptr_str!(path)) {
         Err(e) => e.get(),
         Ok(s) => {
-            let s = CString::new(s).unwrap();
+            let s = unwrap!(CString::new(s));
             let s = s.as_bytes();
 
             let size = s.len().min(size - 1);
@@ -200,27 +240,78 @@ unsafe extern "C" fn read(
 {
     let mut index = 0usize;
 
-    let res = op!(read,
+    match op!(read, ptr_str!(path), filler_mut!(buf, size, index), size, offset, fi.as_mut()) {
+        Ok(_) => unwrap!(index.try_into()),
+        Err(e) => e.get(),
+    }
+}
+
+unsafe extern "C" fn write(
+    path: *const c_char,
+    buf: *const c_char,
+    size: usize,
+    offset: fuse::off_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    let res = op!(write,
         ptr_str!(path),
-        &mut |src| {
-            let len = src.len();
-
-            if len <= size - index {
-                buf.add(index).copy_from_nonoverlapping(src.as_ptr().cast(), len);
-                index += len;
-
-                Ok(index)
-            } else {
-                Err(())
-            }
-        },
-        size,
+        std::slice::from_raw_parts(buf.cast(), size),
         offset,
         fi.as_mut());
 
     match res {
-        Ok(x) => x.try_into().unwrap(),
+        Ok(x) => unwrap!(x.try_into()),
         Err(e) => e.get(),
+    }
+}
+
+unsafe extern "C" fn statfs(path: *const c_char, stbuf: *mut fuse::statvfs) -> c_int {
+    op_result!(op!(statfs, ptr_str!(path), ptr_mut!(stbuf)))
+}
+
+unsafe extern "C" fn flush(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
+    op_result!(op!(flush, ptr_str!(path), ptr_mut!(fi)))
+}
+
+unsafe extern "C" fn release(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
+    op!(release, ptr_str!(path), ptr_mut!(fi));
+
+    0
+}
+
+unsafe extern "C" fn fsync(
+    path: *const c_char,
+    isdatasync: c_int,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(fsync, ptr_str!(path), isdatasync != 0, ptr_mut!(fi)))
+}
+
+unsafe extern "C" fn setxattr(
+    path: *const c_char,
+    name: *const c_char,
+    value: *const c_char,
+    size: usize,
+    flags: c_int) -> c_int
+{
+    op_result!(op!(setxattr,
+        ptr_str!(path),
+        ptr_str!(name),
+        std::slice::from_raw_parts(value.cast(), size),
+        flags))
+}
+
+unsafe extern "C" fn getxattr(
+    path: *const c_char,
+    name: *const c_char,
+    value: *mut c_char,
+    size: usize) -> c_int
+{
+    let mut index = 0usize;
+
+    match op!(getxattr, ptr_str!(path), ptr_str!(name), filler_mut!(value, size, index), size) {
+        Ok(_) => unwrap!(index.try_into()),
+        Err(e) => e.get()
     }
 }
 
@@ -232,12 +323,12 @@ unsafe extern "C" fn readdir(
     fi: *mut fuse::fuse_file_info,
     flags: fuse::fuse_readdir_flags) -> c_int
 {
-    let filler = filler.unwrap();
+    let filler = unwrap!(filler);
 
     op_result!(op!(readdir,
         ptr_str!(path),
         &|name, stbuf, offset, flags| {
-            let name = CString::new(name).unwrap();
+            let name = unwrap!(CString::new(name));
 
             let stbuf = if let Some(x) = stbuf {
                 x
@@ -284,13 +375,13 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         truncate: Some(truncate),
         open: Some(open),
         read: Some(read),
-        write: None,
-        statfs: None,
-        flush: None,
-        release: None,
-        fsync: None,
-        setxattr: None,
-        getxattr: None,
+        write: Some(write),
+        statfs: Some(statfs),
+        flush: Some(flush),
+        release: Some(release),
+        fsync: Some(fsync),
+        setxattr: Some(setxattr),
+        getxattr: Some(getxattr),
         listxattr: None,
         removexattr: None,
         opendir: None,

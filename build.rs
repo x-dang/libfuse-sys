@@ -3,25 +3,26 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
+use unwrap::unwrap;
+
 
 const FUSE_USE_VERSION: u32 = 34;
 
 
 fn main() {
-    let fuse = pkg_config::Config::new()
+    let fuse = unwrap!(pkg_config::Config::new()
         .atleast_version("3.7.0")
-        .probe("fuse3")
-        .unwrap();
+        .probe("fuse3"));
 
-    let fuse_header = find_fuse_header(&fuse.include_paths).unwrap();
-    let fuse_header = fuse_header.to_str().unwrap();
+    let fuse_header = unwrap!(find_fuse_header(&fuse.include_paths));
+    let fuse_header = unwrap!(fuse_header.to_str());
 
     println!("cargo:rerun-if-changed={}", fuse_header);
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_path = PathBuf::from(unwrap!(env::var("OUT_DIR")));
 
     let fuse_header = generate_fuse_header(&out_path, fuse_header);
-    let fuse_header = fuse_header.to_str().unwrap();
+    let fuse_header = unwrap!(fuse_header.to_str());
 
     // install rustfmt(rustup component add rustfmt) to get formated bindings
     let bindings = bindgen::Builder::default()
@@ -53,9 +54,9 @@ fn generate_fuse_header(out: &PathBuf, fuse_header: &str) -> PathBuf {
 
     let path = out.join("fuse.h");
 
-    let mut file = File::create(&path).unwrap();
+    let mut file = unwrap!(File::create(&path));
 
-    file.write_all(content.as_bytes()).unwrap();
+    unwrap!(file.write_all(content.as_bytes()));
 
     path
 }

@@ -10,13 +10,15 @@ pub use operations::Operations;
 use std::ffi::CString;
 use std::convert::TryInto;
 
+use unwrap::unwrap;
+
 
 pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
     where T: Iterator<Item=String>,
           U: 'static + Operations
 {
     let c_args = args
-        .map(|arg| CString::new(arg).unwrap());
+        .map(|arg| unwrap!(CString::new(arg)));
 
     let mut c_args: Vec<_> = c_args
         .map(|arg| arg.into_raw())
@@ -26,7 +28,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
 
     unsafe {
         let err = fuse::fuse_main_real(
-            c_args.len().try_into().unwrap(),
+            unwrap!(c_args.len().try_into()),
             c_args.as_mut_ptr(),
             &ops,
             std::mem::size_of::<fuse::fuse_operations>(),
@@ -40,7 +42,7 @@ pub fn fuse_main<T, U>(args: T, ops: U) -> Result<(), i32>
         if err == 0 {
             Ok(())
         } else {
-            Err(err.try_into().unwrap())
+            Err(unwrap!(err.try_into()))
         }
     }
 }

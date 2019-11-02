@@ -1,5 +1,7 @@
 use std::{ env, process };
 
+use unwrap::unwrap;
+
 use libfuse_sys::{ fuse, Neg, neg };
 
 
@@ -91,7 +93,7 @@ impl libfuse_sys::Operations for Hello {
         filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
         size: usize,
         offset: fuse::off_t,
-        fi: Option<&mut fuse::fuse_file_info>) -> Result<usize, Neg>
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<(), Neg>
     {
         if &path[1..] != self.filename {
             return Err(neg!(-libc::ENOENT));
@@ -107,9 +109,9 @@ impl libfuse_sys::Operations for Hello {
                 size = len - offset;
             }
 
-            Ok(filler(self.contents[offset .. offset + size].as_bytes()).unwrap())
-        } else {
-            Ok(0)
+            unwrap!(filler(self.contents[offset .. offset + size].as_bytes()));
         }
+
+        Ok(())
     }
 }
