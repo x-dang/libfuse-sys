@@ -84,6 +84,16 @@ pub trait Operations {
         size: usize
     }
 
+    op_method! { listxattr;
+        path: &str,
+        filler: &mut dyn FnMut(&[u8]) -> Result<usize, ()>,
+        size: usize
+    }
+
+    op_method! { removexattr; path: &str, name: &str }
+
+    fn opendir(&mut self, path: &str, fi: &mut fuse::fuse_file_info) -> Result<(), Neg> { Ok(()) }
+
     op_method! { readdir;
         path: &str,
         filler: &dyn Fn(
@@ -92,6 +102,12 @@ pub trait Operations {
         fi: &mut fuse::fuse_file_info,
         flags: fuse::fuse_readdir_flags
     }
+
+    fn releasedir(&mut self,
+        path: &str,
+        fi: &mut fuse::fuse_file_info) -> Result<(), Neg> { Ok(()) }
+
+    op_method! { fsyncdir; path: &str, datasync: c_int, fi: &mut fuse::fuse_file_info }
 
     fn init(&mut self, info: &mut fuse::fuse_conn_info, conf: &mut fuse::fuse_config) { }
 }
@@ -170,7 +186,7 @@ unsafe extern "C" fn readlink(path: *const c_char, buf: *mut c_char, size: usize
             *buf.add(size) = 0;
 
             0
-        }
+        },
     }
 }
 
@@ -311,8 +327,25 @@ unsafe extern "C" fn getxattr(
 
     match op!(getxattr, ptr_str!(path), ptr_str!(name), filler_mut!(value, size, index), size) {
         Ok(_) => unwrap!(index.try_into()),
-        Err(e) => e.get()
+        Err(e) => e.get(),
     }
+}
+
+unsafe extern "C" fn listxattr(path: *const c_char, list: *mut c_char, size: usize) -> c_int {
+    let mut index = 0usize;
+
+    match op!(listxattr, ptr_str!(path), filler_mut!(list, size, index), size) {
+        Ok(_) => unwrap!(index.try_into()),
+        Err(e) => e.get(),
+    }
+}
+
+unsafe extern "C" fn removexattr(path: *const c_char, name: *const c_char) -> c_int {
+    op_result!(op!(removexattr, ptr_str!(path), ptr_str!(name)))
+}
+
+unsafe extern "C" fn opendir(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
+    op_result!(op!(opendir, ptr_str!(path), ptr_mut!(fi)))
 }
 
 unsafe extern "C" fn readdir(
@@ -350,6 +383,18 @@ unsafe extern "C" fn readdir(
         flags))
 }
 
+unsafe extern "C" fn releasedir(path: *const c_char, fi: *mut fuse::fuse_file_info) -> c_int {
+    op_result!(op!(releasedir, ptr_str!(path), ptr_mut!(fi)))
+}
+
+unsafe extern "C" fn fsyncdir(
+    path: *const c_char,
+    datasync: c_int,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(fsyncdir, ptr_str!(path), datasync, ptr_mut!(fi)))
+}
+
 unsafe extern "C" fn init(
     info: *mut fuse::fuse_conn_info,
     conf: *mut fuse::fuse_config) -> *mut c_void
@@ -382,12 +427,12 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         fsync: Some(fsync),
         setxattr: Some(setxattr),
         getxattr: Some(getxattr),
-        listxattr: None,
-        removexattr: None,
-        opendir: None,
+        listxattr: Some(listxattr),
+        removexattr: Some(removexattr),
+        opendir: Some(opendir),
         readdir: Some(readdir),
-        releasedir: None,
-        fsyncdir: None,
+        releasedir: Some(releasedir),
+        fsyncdir: Some(fsyncdir),
         init: Some(init),
         destroy: None,
         access: None,
