@@ -110,6 +110,60 @@ pub trait Operations {
     op_method! { fsyncdir; path: &str, datasync: c_int, fi: &mut fuse::fuse_file_info }
 
     fn init(&mut self, info: &mut fuse::fuse_conn_info, conf: &mut fuse::fuse_config) { }
+
+    op_method! { access; path: &str, mask: c_int }
+    op_method! { create; path: &str, mode: fuse::mode_t, fi: &mut fuse::fuse_file_info }
+
+    op_method! { lock;
+        path: &str,
+        fi: &mut fuse::fuse_file_info,
+        cmd: c_int,
+        lock: &mut fuse::flock
+    }
+
+    op_method! { utimens;
+        path: &str,
+        ts: &[fuse::timespec],
+        fi: Option<&mut fuse::fuse_file_info>
+    }
+
+    op_method! { bmap; path: &str, blocksize: usize, idx: &mut u64 }
+
+    op_method! { ioctl;
+        path: &str,
+        cmd: c_uint,
+        arg: *mut c_void,
+        fi: Option<&mut fuse::fuse_file_info>,
+        flags: c_uint,
+        data: *mut c_void
+    }
+
+    op_method! { poll;
+        path: &str,
+        fi: &mut fuse::fuse_file_info,
+        ph: Option<&mut fuse::fuse_pollhandle>,
+        reventsp: &mut c_uint
+    }
+
+    op_method! { flock; path: &str, fi: &mut fuse::fuse_file_info, op: c_int }
+
+    op_method! { fallocate;
+        path: &str,
+        mode: c_int,
+        offset: fuse::off_t,
+        length: fuse::off_t,
+        fi: &mut fuse::fuse_file_info
+    }
+
+    fn copy_file_range(&mut self,
+        path_in: &str,
+        fi_in: &mut fuse::fuse_file_info,
+        off_in: fuse::off_t,
+        path_out: &str,
+        fi_out: &mut fuse::fuse_file_info,
+        off_out: fuse::off_t,
+        len: usize,
+        flags: c_int) -> Result<usize, Neg> { Err(neg!(-ENOSYS)) }
 }
 
 
@@ -404,6 +458,89 @@ unsafe extern "C" fn init(
     std::ptr::null_mut()
 }
 
+unsafe extern "C" fn access(path: *const c_char, mask: c_int) -> c_int {
+    op_result!(op!(access, ptr_str!(path), mask))
+}
+
+unsafe extern "C" fn create(
+    path: *const c_char,
+    mode: fuse::mode_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(create, ptr_str!(path), mode, ptr_mut!(fi)))
+}
+
+unsafe extern "C" fn lock(
+    path: *const c_char,
+    fi: *mut fuse::fuse_file_info,
+    cmd: c_int,
+    lock: *mut fuse::flock) -> c_int
+{
+    op_result!(op!(lock, ptr_str!(path), ptr_mut!(fi), cmd, ptr_mut!(lock)))
+}
+
+unsafe extern "C" fn utimens(
+    path: *const c_char,
+    ts: *const fuse::timespec,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(utimens, ptr_str!(path), std::slice::from_raw_parts(ts, 2), fi.as_mut()))
+}
+
+unsafe extern "C" fn bmap(path: *const c_char, blocksize: usize, idx: *mut u64) -> c_int {
+    op_result!(op!(bmap, ptr_str!(path), blocksize, ptr_mut!(idx)))
+}
+
+unsafe extern "C" fn ioctl(
+    path: *const c_char,
+    cmd: c_uint,
+    arg: *mut c_void,
+    fi: *mut fuse::fuse_file_info,
+    flags: c_uint,
+    data: *mut c_void) -> c_int
+{
+    op_result!(op!(ioctl, ptr_str!(path), cmd, arg, fi.as_mut(), flags, data))
+}
+
+unsafe extern "C" fn poll(
+    path: *const c_char,
+    fi: *mut fuse::fuse_file_info,
+    ph: *mut fuse::fuse_pollhandle,
+    reventsp: *mut c_uint) -> c_int
+{
+    op_result!(op!(poll, ptr_str!(path), ptr_mut!(fi), ph.as_mut(), ptr_mut!(reventsp)))
+}
+
+unsafe extern "C" fn flock(path: *const c_char, fi: *mut fuse::fuse_file_info, op: c_int) -> c_int {
+    op_result!(op!(flock, ptr_str!(path), ptr_mut!(fi), op))
+}
+
+unsafe extern "C" fn fallocate(
+    path: *const c_char,
+    mode: c_int,
+    offset: fuse::off_t,
+    length: fuse::off_t,
+    fi: *mut fuse::fuse_file_info) -> c_int
+{
+    op_result!(op!(fallocate, ptr_str!(path), mode, offset, length, ptr_mut!(fi)))
+}
+
+unsafe extern "C" fn copy_file_range(
+    path_in: *const c_char, fi_in: *mut fuse::fuse_file_info, off_in: fuse::off_t,
+    path_out: *const c_char, fi_out: *mut fuse::fuse_file_info, off_out: fuse::off_t,
+    len: usize, flags: c_int) -> isize
+{
+    let res = op!(copy_file_range,
+        ptr_str!(path_in), ptr_mut!(fi_in), off_in,
+        ptr_str!(path_out), ptr_mut!(fi_out), off_out,
+        len, flags);
+
+    match res {
+        Ok(x) => unwrap!(x.try_into()),
+        Err(e) => unwrap!(e.get().try_into()),
+    }
+}
+
 fn fuse_operations_new() -> fuse::fuse_operations {
     fuse::fuse_operations {
         getattr: Some(getattr),
@@ -435,17 +572,17 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         fsyncdir: Some(fsyncdir),
         init: Some(init),
         destroy: None,
-        access: None,
-        create: None,
-        lock: None,
-        utimens: None,
-        bmap: None,
-        ioctl: None,
-        poll: None,
+        access: Some(access),
+        create: Some(create),
+        lock: Some(lock),
+        utimens: Some(utimens),
+        bmap: Some(bmap),
+        ioctl: Some(ioctl),
+        poll: Some(poll),
         write_buf: None,
         read_buf: None,
-        flock: None,
-        fallocate: None,
-        copy_file_range: None,
+        flock: Some(flock),
+        fallocate: Some(fallocate),
+        copy_file_range: Some(copy_file_range),
     }
 }
