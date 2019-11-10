@@ -164,6 +164,12 @@ pub trait Operations {
         off_out: fuse::off_t,
         len: usize,
         flags: c_int) -> Result<usize, Neg> { Err(neg!(-ENOSYS)) }
+
+    fn lseek(&mut self,
+        path: &str,
+        off: fuse::off_t,
+        whence: c_int,
+        fi: Option<&mut fuse::fuse_file_info>) -> Result<u64, Neg> { Err(neg!(-ENOSYS)) }
 }
 
 
@@ -541,6 +547,18 @@ unsafe extern "C" fn copy_file_range(
     }
 }
 
+unsafe extern "C" fn lseek(
+    path: *const c_char,
+    off: fuse::off_t,
+    whence: c_int,
+    fi: *mut fuse::fuse_file_info) -> fuse::off_t
+{
+    match op!(lseek, ptr_str!(path), off, whence, fi.as_mut()) {
+        Ok(x) => unwrap!(x.try_into()),
+        Err(e) => unwrap!(e.get().try_into()),
+    }
+}
+
 fn fuse_operations_new() -> fuse::fuse_operations {
     fuse::fuse_operations {
         getattr: Some(getattr),
@@ -584,5 +602,6 @@ fn fuse_operations_new() -> fuse::fuse_operations {
         flock: Some(flock),
         fallocate: Some(fallocate),
         copy_file_range: Some(copy_file_range),
+        lseek: Some(lseek),
     }
 }

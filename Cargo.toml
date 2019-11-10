@@ -1,6 +1,6 @@
 [package]
 name = "libfuse-sys"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Huacheng Tan <huacheng.tan@foxmail.com>"]
 edition = "2018"
 links = "fuse3"

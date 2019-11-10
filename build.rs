@@ -11,7 +11,7 @@ const FUSE_USE_VERSION: u32 = 34;
 
 fn main() {
     let fuse = unwrap!(pkg_config::Config::new()
-        .atleast_version("3.7.0")
+        .atleast_version("3.8.0")
         .probe("fuse3"));
 
     let fuse_header = unwrap!(find_fuse_header(&fuse.include_paths));
